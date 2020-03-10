@@ -1,1 +1,1 @@
-# swarm_config
+# Configurações do swarm para cluster

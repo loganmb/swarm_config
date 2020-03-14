@@ -1,4 +1,4 @@
-version: '3'
+version: '3.2'
 services:
   visualizador:
     image: dockersamples/visualizer
@@ -11,28 +11,81 @@ services:
         constraints:
           - node.role == manager
 
-  zookeeper:
+  zookeeper-1:
     image: confluentinc/cp-zookeeper:latest
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_CLIENT_PORT: 22181
       ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_SERVERS: zookeeper1:22888:23888;zookeeper2:32888:33888;zookeeper3:42888:43888
+    ports:
+      - 22181:22181
+      - 23888:23888
     deploy:
       replicas: 1
       restart_policy:
         condition: on-failure
     networks:
-      - internal
+      - zookeepers
+    extra_hosts:
+      - "moby:127.0.0.1"
 
-  kafka:
+  zookeeper-2:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_SERVER_ID: 2
+      ZOOKEEPER_CLIENT_PORT: 32181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_SERVERS: zookeeper1:22888:23888;zookeeper2:32888:33888;zookeeper3:42888:43888
+    ports:
+      - 32181:32181
+      - 32888:32888
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    networks:
+      - zookeepers
+    extra_hosts:
+      - "moby:127.0.0.1"
+
+  zookeeper-3:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_SERVER_ID: 3
+      ZOOKEEPER_CLIENT_PORT: 42181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_SERVERS: zookeeper1:22888:23888;zookeeper2:32888:33888;zookeeper3:42888:43888
+    ports:
+      - 42181:42181
+      - 42888:42888
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    networks:
+      - zookeepers
+    extra_hosts:
+      - "moby:127.0.0.1"
+
+  kafka-1:
     image: confluentinc/cp-kafka:latest
     depends_on:
-      - zookeeper
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
     ports:
       - 9092:9092
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper1:22181,zookeeper2:32181,zookeeper3:42181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:19092,PLAINTEXT_HOST://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -41,8 +94,60 @@ services:
       restart_policy:
         condition: on-failure
     networks:
-      - internal
+      - zookeepers
       - producers
+    extra_hosts:
+      - "moby:127.0.0.1"
+
+  kafka-2:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+    ports:
+      - 9093:9093
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper1:22181,zookeeper2:32181,zookeeper3:42181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:29092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    networks:
+      - zookeepers
+      - producers
+    extra_hosts:
+      - "moby:127.0.0.1"
+
+  kafka-3:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+    ports:
+      - 9094:9094
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper1:22181,zookeeper2:32181,zookeeper3:42181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:39092,PLAINTEXT_HOST://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    networks:
+      - zookeepers
+      - producers
+    extra_hosts:
+      - "moby:127.0.0.1"
 
   nodejs-producer:
     image: luizkt/nodejs-producer-bf
@@ -51,13 +156,16 @@ services:
     ports:
       - 3000
     environment:
-      KAFKA_CLIENT_ADDRESS: kafka:9092
+      KAFKA_CLIENT_ADDRESS: "kafka1:9092,kafka2:9093,kafka3:9094"
     networks:
-      - internal
       - producers
 
 networks:
-  internal:
-    external: false
-  producers:
+  zookeepers:
+    driver: overlay
     external: true
+    #attachable: true
+  producers:
+    driver: overlay
+    external: true
+    #attachable: true

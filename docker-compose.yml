@@ -45,7 +45,7 @@ services:
         condition: on-failure
     networks:
       - zookeeper-net
-      - producers
+      - producer-net
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
@@ -58,14 +58,12 @@ services:
     environment:
       KAFKA_CLIENT_ADDRESS: kafka:9092
     networks:
-      - producers
+      - producer-net
 
 networks:
   zookeeper-net:
     driver: overlay
     external: true
-    #attachable: true
-  producers:
+  producer-net:
     driver: overlay
     external: true
-    #attachable: true

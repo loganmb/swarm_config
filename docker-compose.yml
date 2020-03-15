@@ -46,6 +46,7 @@ services:
     networks:
       - zookeeper-net
       - producer-net
+      - consumer-net
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
@@ -57,13 +58,36 @@ services:
       - 3000:3000
     environment:
       KAFKA_CLIENT_ADDRESS: kafka:9092
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
     networks:
       - producer-net
+
+  java-consumer:
+    image: luizkt/java-consumer-bf
+    depends_on:
+      - kafka
+    ports:
+      - 8081:8081
+    environment:
+      SERVER_PORT: 8081
+      KAFKA_ADDRESS: kafka:9092
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    networks:
+      - consumer-net
 
 networks:
   zookeeper-net:
     driver: overlay
     external: true
   producer-net:
+    driver: overlay
+    external: true
+  consumer-net:
     driver: overlay
     external: true

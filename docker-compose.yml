@@ -1,0 +1,69 @@
+version: '3.2'
+services:
+  visualizador:
+    image: dockersamples/visualizer
+    volumes:
+    - "/var/run/docker.sock:/var/run/docker.sock"
+    ports:
+    - 8080:8080
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+  zookeeper:
+    image: itsaur/zookeeper-replicated:latest
+    environment:
+      SERVICE_NAME: zookeeper
+      REPLICAS: 3
+    ports:
+      - 2181:2181
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+    networks:
+      - zookeeper-net
+
+  kafka:
+    image: wurstmeister/kafka:latest
+    ports:
+      - target: 9094
+        published: 9094
+        protocol: tcp
+        mode: host
+    environment:
+      HOSTNAME_COMMAND: "docker info | grep ^Name: | cut -d' ' -f 2"
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: INSIDE://:9092,OUTSIDE://_{HOSTNAME_COMMAND}:9094
+      KAFKA_LISTENERS: INSIDE://:9092,OUTSIDE://:9094
+      KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+    networks:
+      - zookeeper-net
+      - producer-net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  nodejs-producer:
+    image: luizkt/nodejs-producer-bf
+    depends_on:
+      - kafka
+    ports:
+      - 3000:3000
+    environment:
+      KAFKA_CLIENT_ADDRESS: kafka:9092
+    networks:
+      - producer-net
+
+networks:
+  zookeeper-net:
+    driver: overlay
+    external: true
+  producer-net:
+    driver: overlay
+    external: true
